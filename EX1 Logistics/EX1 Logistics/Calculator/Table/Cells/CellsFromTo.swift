@@ -11,13 +11,22 @@ class CellsFromTo: UITableViewCell {
     
     static var reuseID = "CellsFromTo"
     
-    var textInsideCell: UILabel = {
+    var selectedCityID: String?
+    var selectedCityName: String?
+    
+    let picker = PickerWithCities()
+    
+    var mainToolBar: UIToolbar?
+    
+    var selectedText: String?
+    
+    var textInsideCell: UITextField = {
         $0.translatesAutoresizingMaskIntoConstraints = false
         $0.textColor = .white
         $0.font = .systemFont(ofSize: 15)
         $0.textAlignment = .left
         return $0
-    }(UILabel())
+    }(UITextField())
     
     var imageInsideCell: UIImageView = {
         $0.translatesAutoresizingMaskIntoConstraints = false
@@ -68,12 +77,40 @@ class CellsFromTo: UITableViewCell {
         cellColor.addSubview(imageInsideCell)
         backgroundColor = .clear
         contentView.backgroundColor = .clear
+        
+        textInsideCell.inputView = picker
+        
+        picker.tapCellCitiesHandler = { [weak self] id, name in
+            self?.selectedCityID = id
+            self?.selectedText = name
+        }
+        
+        textInsideCell.inputAccessoryView = createToolBar()
         setupConstraints()
+    }
+    
+    private func createToolBar() -> UIToolbar {
+        
+        let toolBar = UIToolbar()
+        toolBar.sizeToFit()
+        
+        let flex = UIBarButtonItem(systemItem: .flexibleSpace)
+        let done = UIBarButtonItem(title: "Готово",
+                                   style: .plain,
+                                   target: self,
+                                   action: #selector(doneTapped))
+        
+        toolBar.items = [flex, done, flex]
+        return toolBar
+    }
+    
+    @objc private func doneTapped() {
+        
+        textInsideCell.text = selectedText ?? selectedText
+        textInsideCell.resignFirstResponder()
     }
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
 }
-

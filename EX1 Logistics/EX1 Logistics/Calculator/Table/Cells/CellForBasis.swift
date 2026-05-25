@@ -11,11 +11,13 @@ class CellForBasis: UITableViewCell {
     
     static var reuseID = "CellForBasis"
     
-    let picker = PickerCellForBasis()
+    var selectedBasisID: String?
+    
+    let picker = PickerWithBasis()
     
     var mainToolBar: UIToolbar?
     
-    private var selectedText: String?
+    var selectedText: String?
     
     var textInsideCell: UITextField = {
         $0.translatesAutoresizingMaskIntoConstraints = false
@@ -78,14 +80,15 @@ class CellForBasis: UITableViewCell {
         
         textInsideCell.inputView = picker
         
-        picker.tapCellBasisHandler = { [weak self] value in
-            
-            self?.selectedText = value
+        picker.tapCellBasisHandler = { [weak self] id, name in
+            self?.selectedBasisID = id
+            self?.selectedText = name
         }
         
         textInsideCell.inputAccessoryView = createToolBar()
         setupConstraints()
     }
+    
     private func createToolBar() -> UIToolbar {
         
         let toolBar = UIToolbar()

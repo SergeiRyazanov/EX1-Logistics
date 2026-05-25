@@ -4,8 +4,29 @@
 //
 //  Created by Сергей Рязанов on 4/6/26.
 //
-
+//
 import UIKit
+
+// MARK: - Модель POST запроса
+struct CalculateRequest: Codable {
+
+    let departureId: String
+    let arrivalId: String
+    let basisId: String
+    
+    enum CodingKeys: String, CodingKey {
+
+        case departureId = "departure_id"
+        case arrivalId   = "arrival_id"
+        case basisId     = "basis_id"
+    }
+}
+
+// MARK: - Ответ сервера
+struct CalculateResponse: Codable {
+    
+    let cost: Int
+}
 
 class CalculatorView: UIViewController {
     
@@ -14,67 +35,149 @@ class CalculatorView: UIViewController {
         view.backgroundColor = .white
         view.addSubview(calculatorLabel)
         view.addSubview(tableForCalculator)
+        tableForCalculator.dataSource = tableForCalculator
+        view.addSubview(warningMessage)
+        //view.addSubview(totalPriceButton)
         view.addSubview(blueView)
-        blueView.addSubview(whiteView)
-        whiteView.addSubview(totalPriceLabel)
-        view.addSubview(totalPriceButton)
+        blueView.addSubview(totalPriceButton)
         
         setupConstraints()
     }
     
-    //Заголовок сверху слева
-    let calculatorLabel = CalculatorLabel().calculatorLabel
+    private var departureID: String?
+    private var arrivalID: String?
+    private var basisID: String?
     
-    //Поле для вывода итоговой стоимости
-    let whiteView = TotalPriceView().whiteView
-    let blueView = TotalPriceView().blueView
-    let totalPriceLabel = TotalPriceView().totalPrice
+    let calculatorLabel: UILabel = {
+        
+        $0.text = "Расчёт доставки"
+        $0.textColor = .black
+        $0.textAlignment = .left
+        $0.font = UIFont.systemFont(ofSize: 22, weight: .bold)
+        $0.translatesAutoresizingMaskIntoConstraints = false
+        return $0
+    }(UILabel())
     
-    //Кнопка для расчета стоимости
-    var totalPriceButton = TotalPriceButton().totalPriceButton
+    var warningMessage: UILabel = {
+        
+        $0.translatesAutoresizingMaskIntoConstraints = false
+        $0.text = ""
+        $0.textColor = .red
+        $0.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        return $0
+    }(UILabel())
+
     
-    //Таблица
+    let totalPriceButton: UIButton = {
+        
+        $0.addTarget(self, action: #selector(calc), for: .touchUpInside)
+        $0.translatesAutoresizingMaskIntoConstraints = false
+        $0.setTitle("Посчитать", for: .normal)
+        $0.setTitleColor(.white, for: .normal)
+        $0.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .regular)
+        return $0
+    }(UIButton())
+    
+    let blueView: UIView = {
+        
+        $0.translatesAutoresizingMaskIntoConstraints = false
+        $0.backgroundColor = .systemBlue
+        $0.layer.cornerRadius = 15
+        return $0
+    }(UIView())
+    
+    // MARK: - Отправка POST запроса
+    @objc func calc() {
+
+        // получаем ячейки
+        guard
+            let fromCell = tableForCalculator.cellForRow(at: IndexPath(row: 0, section: 0)) as? CellsFromTo,
+            let toCell = tableForCalculator.cellForRow(at: IndexPath(row: 1, section: 0)) as? CellsFromTo,
+            let basisCell = tableForCalculator.cellForRow(at: IndexPath(row: 2, section: 0)) as? CellForBasis,
+            let departureID = fromCell.selectedCityID,
+            let arrivalID = toCell.selectedCityID,
+            let basisID = basisCell.selectedBasisID
+        else {
+            warningMessage.text = "Заполните все поля!"
+            return
+        }
+
+        let requestModel = CalculateRequest(
+            departureId: departureID,
+            arrivalId: arrivalID,
+            basisId: basisID
+        )
+
+        guard let url = URL(string: "https://test.ex1calcdata.ru/calculate") else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        do {
+            request.httpBody = try JSONEncoder().encode(requestModel)
+        } catch {
+            print("Ошибка кодирования:", error)
+            return
+        }
+                        
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
+
+            if let error = error {
+                print("Ошибка запроса:", error)
+                return
+            }
+
+            guard let data = data else { return }
+
+            do {
+                let response = try JSONDecoder().decode(CalculateResponse.self, from: data)
+
+                DispatchQueue.main.async {
+                                        
+                    let emailVC = EmailView()
+                    emailVC.cost = response.cost
+                    emailVC.cityFrom = fromCell.selectedText
+                    emailVC.cityTo = toCell.selectedText
+                    emailVC.basis = basisCell.selectedText
+
+                    self?.present(emailVC, animated: true)
+
+                }
+
+            } catch {
+                print("Ошибка декодирования:", error)
+            }
+
+        }.resume()
+    }
+    
     let tableForCalculator = TableForCalculator()
     
     private func setupConstraints() {
         
         NSLayoutConstraint.activate([
             
-            //Заголовок сверху слева
-            calculatorLabel.topAnchor.constraint(equalTo: view.topAnchor,
-                                                 constant: 75),
-            calculatorLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor,
-                                                     constant: 15),
+            calculatorLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 75),
+            calculatorLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 15),
             
-            //Таблица
-            tableForCalculator.topAnchor.constraint(equalTo: calculatorLabel.bottomAnchor,
-                                                    constant: 40),
-            tableForCalculator.leadingAnchor.constraint(equalTo: calculatorLabel.leadingAnchor,
-                                                       constant: 5),
-            tableForCalculator.trailingAnchor.constraint(equalTo: view.trailingAnchor,
-                                                         constant: -25),
-            tableForCalculator.bottomAnchor.constraint(equalTo: blueView.topAnchor,
-                                                       constant: -20),
-            //Поле для вывода итоговой стоимости
-            blueView.topAnchor.constraint(equalTo: view.bottomAnchor, constant: -350),
-            blueView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -300),
-            blueView.trailingAnchor.constraint(equalTo: tableForCalculator.trailingAnchor, constant: 0),
-            blueView.leadingAnchor.constraint(equalTo: view.centerXAnchor, constant: 10),
+            tableForCalculator.topAnchor.constraint(equalTo: calculatorLabel.bottomAnchor, constant: 40),
+            tableForCalculator.leadingAnchor.constraint(equalTo: calculatorLabel.leadingAnchor, constant: 5),
+            tableForCalculator.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -25),
+            tableForCalculator.bottomAnchor.constraint(equalTo: warningMessage.topAnchor, constant: 0),
             
-            whiteView.topAnchor.constraint(equalTo: blueView.topAnchor, constant: 2),
-            whiteView.bottomAnchor.constraint(equalTo: blueView.bottomAnchor, constant: -2),
-            whiteView.leadingAnchor.constraint(equalTo: blueView.leadingAnchor, constant: 2),
-            whiteView.trailingAnchor.constraint(equalTo: blueView.trailingAnchor, constant: -2),
+            warningMessage.centerXAnchor.constraint(equalTo: tableForCalculator.centerXAnchor, constant: 0),
+            warningMessage.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -60),
+            warningMessage.bottomAnchor.constraint(equalTo: totalPriceButton.topAnchor, constant: 0),
+
+            totalPriceButton.topAnchor.constraint(equalTo: tableForCalculator.bottomAnchor, constant: 60),
+            totalPriceButton.centerXAnchor.constraint(equalTo: warningMessage.centerXAnchor),
             
-            totalPriceLabel.topAnchor.constraint(equalTo: whiteView.topAnchor, constant: 0),
-            totalPriceLabel.bottomAnchor.constraint(equalTo: whiteView.bottomAnchor, constant: 0),
-            totalPriceLabel.trailingAnchor.constraint(equalTo: whiteView.trailingAnchor, constant: -5),
-            
-            //Кнопка для расчета стоимости
-            totalPriceButton.topAnchor.constraint(equalTo: blueView.topAnchor, constant: 0),
-            totalPriceButton.bottomAnchor.constraint(equalTo: blueView.bottomAnchor, constant: 0),
-            totalPriceButton.trailingAnchor.constraint(equalTo: blueView.leadingAnchor, constant: -15),
-            totalPriceLabel.centerYAnchor.constraint(equalTo: blueView.centerYAnchor, constant: 0)
+            blueView.topAnchor.constraint(equalTo: totalPriceButton.topAnchor, constant: -5),
+            blueView.bottomAnchor.constraint(equalTo: totalPriceButton.bottomAnchor, constant: 5),
+            blueView.leadingAnchor.constraint(equalTo: totalPriceButton.leadingAnchor, constant: -10),
+            blueView.trailingAnchor.constraint(equalTo: totalPriceButton.trailingAnchor, constant: 10),
+
         ])
     }
 }
